@@ -162,5 +162,118 @@ class rootSocket {
             console.error(`Failed to update`);
         }
     }
+    async personalChat(body, _ack) {
+        try {
+            const [sender, receiver] = await Promise.all([
+                models_1.User.findById(this.userId).lean(),
+                models_1.User.findById(body.userId).lean(),
+            ]);
+            if (!sender) {
+                return _ack?.({
+                    success: response_1.response.USER_NOT_FOUND.code,
+                    errormessage: response_1.response.USER_NOT_FOUND.message,
+                });
+            }
+            if (!receiver) {
+                return _ack?.({
+                    success: response_1.response.USER_NOT_FOUND.code,
+                    errormessage: response_1.response.USER_NOT_FOUND.message,
+                });
+            }
+            await models_1.Message.create({
+                senderId: sender._id,
+                receiverId: receiver._id,
+                message: body.message,
+                chatType: models_1.EChatType.personal,
+                status: models_1.EMessageStatus.sent,
+            });
+            return _ack?.({
+                success: response_1.response.SUCCESS.code,
+                errormessage: response_1.response.SUCCESS.message,
+                response: "Message Sent",
+            });
+        }
+        catch (err) {
+            console.error(`Failed to update`);
+        }
+    }
+    async groupChat(body, _ack) {
+        try {
+            const [sender, channel] = await Promise.all([
+                models_1.User.findById(this.userId).lean(),
+                models_1.Channel.findById(body.chatId).lean(),
+            ]);
+            if (!sender) {
+                return _ack?.({
+                    success: response_1.response.USER_NOT_FOUND.code,
+                    errormessage: response_1.response.USER_NOT_FOUND.message,
+                });
+            }
+            if (!channel) {
+                return _ack?.({
+                    success: response_1.response.CHANNEL_NOT_FOUND.code,
+                    errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
+                });
+            }
+            await models_1.Message.create({
+                senderId: sender._id,
+                channelId: channel._id,
+                message: body.message,
+                chatType: models_1.EChatType.group,
+                status: models_1.EMessageStatus.sent,
+            });
+            return _ack?.({
+                success: response_1.response.SUCCESS.code,
+                errormessage: response_1.response.SUCCESS.message,
+                response: "Message Sent",
+            });
+        }
+        catch (err) {
+            console.error(`Failed to update`);
+        }
+    }
+    async logOut(body, _ack) {
+        try {
+            const user = await models_1.User.findById(this.userId).lean();
+            if (!user) {
+                return _ack?.({
+                    success: response_1.response.USER_NOT_FOUND.code,
+                    errormessage: response_1.response.USER_NOT_FOUND.message,
+                });
+            }
+            await models_1.User.findByIdAndUpdate({ _id: db_1.M.mongify(this.userId) }, { $set: { authToken: "deleted", socketId: null, isOnline: false } });
+            return _ack?.({
+                success: response_1.response.SUCCESS.code,
+                errormessage: response_1.response.SUCCESS.message,
+                response: "Message Sent",
+            });
+        }
+        catch (err) {
+            console.error(`Failed to update`);
+        }
+    }
+    async deleteProfile(body, _ack) {
+        try {
+            const user = await models_1.User.findById(this.userId).lean();
+            if (!user) {
+                return _ack?.({
+                    success: response_1.response.USER_NOT_FOUND.code,
+                    errormessage: response_1.response.USER_NOT_FOUND.message,
+                });
+            }
+            await Promise.all([
+                models_1.User.findByIdAndDelete({ _id: db_1.M.mongify(this.userId) }),
+                models_1.Channel.findByIdAndUpdate({ "users.userId": db_1.M.mongify(this.userId) }, { $pull: { users: { userId: new db_1.Types.ObjectId(this.userId) } } }, { new: true }),
+            ]);
+            return _ack?.({
+                success: response_1.response.SUCCESS.code,
+                errormessage: response_1.response.SUCCESS.message,
+                response: "Message Sent",
+            });
+        }
+        catch (err) {
+            console.error(`Failed to update`);
+        }
+    }
 }
 exports.rootSocket = rootSocket;

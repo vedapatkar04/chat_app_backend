@@ -13,6 +13,8 @@ enum EMessageStatus {
 
 interface IMessage {
   senderId: Schema.Types.ObjectId;
+  receiverId?: Schema.Types.ObjectId;
+  channelId?: Schema.Types.ObjectId;
   chatType: EChatType;
   message: string | null;
   status: EMessageStatus;
@@ -27,7 +29,9 @@ interface IMessageType extends IMessage {
 
 const schema = new Schema<IMessageType>(
   {
-    senderId: { type: Schema.Types.ObjectId, required: true, index: true },
+    senderId: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
+    receiverId: { type: Schema.Types.ObjectId, required: false, ref: 'User'  },
+    channelId: { type: Schema.Types.ObjectId, required: false },
     chatType: { type: Number, required: true, enum: EChatType, default: EChatType.personal },
     message: { type: String || null, required: false, default: '' },
     status: { type: Number, required: true, enum: EMessageStatus, default: EMessageStatus.sent },

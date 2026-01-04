@@ -14,7 +14,9 @@ var EMessageStatus;
     EMessageStatus[EMessageStatus["read"] = 3] = "read";
 })(EMessageStatus || (exports.EMessageStatus = EMessageStatus = {}));
 const schema = new mongoose_1.Schema({
-    senderId: { type: mongoose_1.Schema.Types.ObjectId, required: true, index: true },
+    senderId: { type: mongoose_1.Schema.Types.ObjectId, required: true, ref: 'User' },
+    receiverId: { type: mongoose_1.Schema.Types.ObjectId, required: false, ref: 'User' },
+    channelId: { type: mongoose_1.Schema.Types.ObjectId, required: false },
     chatType: { type: Number, required: true, enum: EChatType, default: EChatType.personal },
     message: { type: String || null, required: false, default: '' },
     status: { type: Number, required: true, enum: EMessageStatus, default: EMessageStatus.sent },

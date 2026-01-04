@@ -1,5 +1,13 @@
 import { Socket } from "socket.io";
-import { Channel, EChannelStatus, IChannelType, User } from "../src/models";
+import {
+  Channel,
+  EChannelStatus,
+  EChatType,
+  EMessageStatus,
+  IChannelType,
+  Message,
+  User,
+} from "../src/models";
 import { response as RES } from "./util/response";
 import { M, Types } from "./config/db";
 import { response } from "express";
@@ -210,6 +218,150 @@ export class rootSocket {
         success: RES.SUCCESS.code,
         errormessage: RES.SUCCESS.message,
         response: channel,
+      });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async personalChat(
+    body: {
+      userId: string;
+      message: string;
+    },
+    _ack?: Function
+  ) {
+    try {
+      const [sender, receiver] = await Promise.all([
+        User.findById(this.userId).lean(),
+        User.findById(body.userId).lean(),
+      ]);
+
+      if (!sender) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      if (!receiver) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      await Message.create({
+        senderId: sender._id,
+        receiverId: receiver._id,
+        message: body.message,
+        chatType: EChatType.personal,
+        status: EMessageStatus.sent,
+      });
+
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: "Message Sent",
+      });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async groupChat(
+    body: {
+      chatId: string;
+      message: string;
+    },
+    _ack?: Function
+  ) {
+    try {
+      const [sender, channel] = await Promise.all([
+        User.findById(this.userId).lean(),
+        Channel.findById(body.chatId).lean(),
+      ]);
+
+      if (!sender) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      if (!channel) {
+        return _ack?.({
+          success: RES.CHANNEL_NOT_FOUND.code,
+          errormessage: RES.CHANNEL_NOT_FOUND.message,
+        });
+      }
+
+      await Message.create({
+        senderId: sender._id,
+        channelId: channel._id,
+        message: body.message,
+        chatType: EChatType.group,
+        status: EMessageStatus.sent,
+      });
+
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: "Message Sent",
+      });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async logOut(body: {}, _ack?: Function) {
+    try {
+      const user = await User.findById(this.userId).lean();
+
+      if (!user) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      await User.findByIdAndUpdate(
+        { _id: M.mongify(this.userId) },
+        { $set: { authToken: "deleted", socketId: null, isOnline: false } }
+      );
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: "Message Sent",
+      });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async deleteProfile(body: {}, _ack?: Function) {
+    try {
+      const user = await User.findById(this.userId).lean();
+
+      if (!user) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      await Promise.all([
+        User.findByIdAndDelete({ _id: M.mongify(this.userId) }),
+        Channel.findByIdAndUpdate(
+          { "users.userId": M.mongify(this.userId) },
+          { $pull: { users: { userId: new Types.ObjectId(this.userId) } } },
+          { new: true }
+        ),
+      ]);
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: "Message Sent",
       });
     } catch (err) {
       console.error(`Failed to update`);
