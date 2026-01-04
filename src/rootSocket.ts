@@ -1,5 +1,5 @@
 import { Socket } from "socket.io";
-import { User } from "../src/models";
+import { Channel, EChannelStatus, IChannelType, User } from "../src/models";
 import { response as RES } from "./util/response";
 import { M, Types } from "./config/db";
 import { response } from "express";
@@ -32,11 +32,27 @@ export class rootSocket {
       this.socket.on("updateProfile", this.updateProfile.bind(this));
     }
 
-    
+    //create group
+    if (!this.socket.eventNames().includes("createGroup")) {
+      this.socket.on("createGroup", this.createGroup.bind(this));
+    }
+
+    // leave group
+    if (!this.socket.eventNames().includes("leaveGroup")) {
+      this.socket.on("leaveGroup", this.leaveGroup.bind(this));
+    }
+
+    // message
     if (!this.socket.eventNames().includes("disconnect")) {
       this.socket.on("disconnect", this.disconnect.bind(this));
     }
 
+    // delete message
+    if (!this.socket.eventNames().includes("disconnect")) {
+      this.socket.on("disconnect", this.disconnect.bind(this));
+    }
+
+    //logout
     if (!this.socket.eventNames().includes("disconnect")) {
       this.socket.on("disconnect", this.disconnect.bind(this));
     }
@@ -93,7 +109,6 @@ export class rootSocket {
             errormessage: RES.USER_NOT_FOUND.message,
           });
 
-
       await User.findByIdAndUpdate(
         { _id: M.mongify(this.userId) },
         {
@@ -107,6 +122,95 @@ export class rootSocket {
           errormessage: RES.SUCCESS.message,
           response: "Updated successfully",
         });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async createGroup(
+    body: {
+      channelName: string;
+      participants: { userId: string; name: string }[];
+    },
+    _ack?: Function
+  ) {
+    try {
+      const creator = await User.findById(this.userId).lean();
+
+      if (!creator) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      const users: any = [
+        {
+          userId: creator._id,
+          name: creator.name,
+        },
+
+        ...body.participants
+          .filter((p) => p.userId !== creator._id.toString())
+          .map((p) => ({
+            userId: M.mongify(p.userId),
+            name: p.name || "",
+          })),
+      ];
+
+      const channel = await Channel.create({
+        channelName: body.channelName,
+        users,
+        status: EChannelStatus.active,
+      });
+
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: channel,
+      });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async leaveGroup(
+    body: {
+      channelId: string;
+    },
+    _ack?: Function
+  ) {
+    try {
+      const [creator, channel] = await Promise.all([
+        User.findById(this.userId).lean(),
+        Channel.findById({ _id: M.mongify(body.channelId) }).lean(),
+      ]);
+
+      if (!creator) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      if (!channel) {
+        return _ack?.({
+          success: RES.CHANNEL_NOT_FOUND.code,
+          errormessage: RES.CHANNEL_NOT_FOUND.message,
+        });
+      }
+
+      const updatedChannel = await Channel.findByIdAndUpdate(
+        M.mongify(body.channelId),
+        { $pull: { users: { userId: new Types.ObjectId(this.userId) } } },
+        { new: true }
+      );
+
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: channel,
+      });
     } catch (err) {
       console.error(`Failed to update`);
     }

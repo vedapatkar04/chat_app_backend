@@ -5,7 +5,7 @@ enum EChatType {
   personal = 2,
 }
 
-enum EStatus {
+enum EMessageStatus {
   sent = 1,
   delivered = 2,
   read = 3,
@@ -15,7 +15,7 @@ interface IMessage {
   senderId: Schema.Types.ObjectId;
   chatType: EChatType;
   message: string | null;
-  status: EStatus;
+  status: EMessageStatus;
   readBy?: string[]
 }
 
@@ -30,7 +30,7 @@ const schema = new Schema<IMessageType>(
     senderId: { type: Schema.Types.ObjectId, required: true, index: true },
     chatType: { type: Number, required: true, enum: EChatType, default: EChatType.personal },
     message: { type: String || null, required: false, default: '' },
-    status: { type: Number, required: true, enum: EStatus, default: EStatus.sent },
+    status: { type: Number, required: true, enum: EMessageStatus, default: EMessageStatus.sent },
     readBy: { type: [String], default: [] },
   },
   {
@@ -40,4 +40,4 @@ const schema = new Schema<IMessageType>(
 
 const Message = model<IMessageType>('Message', schema, 'Message');
 
-export { Message, IMessage, IMessageType };
+export { Message, IMessage, IMessageType, EMessageStatus, EChatType };

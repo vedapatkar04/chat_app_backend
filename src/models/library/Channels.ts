@@ -1,6 +1,6 @@
 import { Schema, model } from 'mongoose';
 
-enum EStatus {
+enum EChannelStatus {
   active = 1,
   deactivated = 2,
 }
@@ -11,7 +11,7 @@ interface IChannel {
     userId: Schema.Types.ObjectId,
     userName: string,
   }[];
-  status: EStatus;
+  status: EChannelStatus;
 }
 
 interface IChannelType extends IChannel {
@@ -26,14 +26,14 @@ const schema = new Schema<IChannelType>(
     users: { type: [
         {
           _id: false,
-          userId: { type: Schema.Types.ObjectId, required: true, index: true },
+          userId: { type: Schema.Types.ObjectId, required: true, ref: "User" },
           userName: { type: String, default: '' },
         },
       ],
       required: true,
       default: []
     },
-    status: { type: Number, required: true, enum: EStatus, default: EStatus.active },
+    status: { type: Number, required: true, enum: EChannelStatus, default: EChannelStatus.active },
   },
   {
     timestamps: { createdAt: 'dCreatedAt', updatedAt: 'dUpdatedAt' },
@@ -42,4 +42,4 @@ const schema = new Schema<IChannelType>(
 
 const Channel = model<IChannelType>('Channel', schema, 'Channel');
 
-export { Channel, IChannel, IChannelType };
+export { Channel, IChannel, IChannelType, EChannelStatus };
