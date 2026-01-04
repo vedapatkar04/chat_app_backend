@@ -1,0 +1,1 @@
+A chat app backend project using node js, express js, mongodb, typescript and socket io
