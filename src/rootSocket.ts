@@ -50,19 +50,27 @@ export class rootSocket {
       this.socket.on("leaveGroup", this.leaveGroup.bind(this));
     }
 
-    // message
-    if (!this.socket.eventNames().includes("disconnect")) {
-      this.socket.on("disconnect", this.disconnect.bind(this));
+    // personalChat
+    if (!this.socket.eventNames().includes("personalChat")) {
+      this.socket.on("personalChat", this.personalChat.bind(this));
     }
 
-    // delete message
-    if (!this.socket.eventNames().includes("disconnect")) {
-      this.socket.on("disconnect", this.disconnect.bind(this));
+    // groupChat message
+    if (!this.socket.eventNames().includes("groupChatMessage")) {
+      this.socket.on("groupChatMessage", this.groupChatMessage.bind(this));
+    }
+    // deleteProfiles
+    if (!this.socket.eventNames().includes("groupChatMessage")) {
+      this.socket.on("deleteProfile", this.deleteProfile.bind(this));
+    }
+    // groupChat
+    if (!this.socket.eventNames().includes("groupChat")) {
+      this.socket.on("groupChat", this.groupChat.bind(this));
     }
 
     //logout
-    if (!this.socket.eventNames().includes("disconnect")) {
-      this.socket.on("disconnect", this.disconnect.bind(this));
+    if (!this.socket.eventNames().includes("logOut")) {
+      this.socket.on("logOut", this.logOut.bind(this));
     }
   }
 
@@ -96,6 +104,7 @@ export class rootSocket {
         {
           socketId: null,
           isOnline: false,
+          lastSeen: new Date()
         }
       );
       console.log(
@@ -269,7 +278,7 @@ export class rootSocket {
     }
   }
 
-  private async groupChat(
+  private async groupChatMessage(
     body: {
       chatId: string;
       message: string;
@@ -362,6 +371,63 @@ export class rootSocket {
         success: RES.SUCCESS.code,
         errormessage: RES.SUCCESS.message,
         response: "Message Sent",
+      });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async groupChat(
+    body: {
+      chatId: string;
+    },
+    _ack?: Function
+  ) {
+    try {
+      const [sender, channel] = await Promise.all([
+        User.findById(this.userId).lean(),
+        Channel.findById(body.chatId).lean(),
+      ]);
+
+      if (!sender) {
+        return _ack?.({
+          success: RES.USER_NOT_FOUND.code,
+          errormessage: RES.USER_NOT_FOUND.message,
+        });
+      }
+
+      if (!channel) {
+        return _ack?.({
+          success: RES.CHANNEL_NOT_FOUND.code,
+          errormessage: RES.CHANNEL_NOT_FOUND.message,
+        });
+      }
+
+      const chats = await Message.find(
+        { channelId: channel._id },
+        { senderId: 1, message: 1, readBy: 1 }
+      ).lean();
+
+      const userIds = chats.map((chat) => chat.senderId);
+      const users = await User.find(
+        { _id: { $in: userIds } },
+        { name: 1 }
+      ).lean();
+
+      const messagesWithUserNames = chats.map((chat) => {
+        const user = users.find(
+          (u) => u._id.toString() === chat.senderId.toString()
+        );
+        return {
+          message: chat.message,
+          name: user ? user.name : "Unknown",
+          readBy: chat.readBy,
+        };
+      });
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: messagesWithUserNames ?? [],
       });
     } catch (err) {
       console.error(`Failed to update`);

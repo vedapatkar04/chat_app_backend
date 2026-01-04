@@ -12,7 +12,6 @@ const schema = new mongoose_1.Schema({
     isOnline: { type: Boolean, required: false, default: true },
     lastSeen: { type: Date, required: false, default: new Date() },
     lastSeenChatId: { type: mongoose_1.Schema.Types.ObjectId, required: false },
-    lastSeenInboxMsgId: { type: mongoose_1.Schema.Types.ObjectId, required: false },
 }, {
     timestamps: { createdAt: 'dCreatedAt', updatedAt: 'dUpdatedAt' },
 });

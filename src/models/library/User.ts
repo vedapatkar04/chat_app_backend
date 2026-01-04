@@ -10,7 +10,6 @@ interface IUser {
     isOnline: boolean;
     lastSeen: Date;
     lastSeenChatId?: Schema.Types.ObjectId;
-    lastSeenInboxMsgId?: Schema.Types.ObjectId;
 }
 
 interface IUserType extends IUser {
@@ -30,7 +29,6 @@ const schema = new Schema<IUserType>(
     isOnline: { type: Boolean, required: false, default: true },
     lastSeen: { type: Date, required: false, default: new Date() },
     lastSeenChatId: { type: Schema.Types.ObjectId, required: false },
-    lastSeenInboxMsgId: { type: Schema.Types.ObjectId, required: false },
     },
   {
     timestamps: { createdAt: 'dCreatedAt', updatedAt: 'dUpdatedAt' },

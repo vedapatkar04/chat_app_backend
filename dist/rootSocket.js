@@ -32,17 +32,25 @@ class rootSocket {
         if (!this.socket.eventNames().includes("leaveGroup")) {
             this.socket.on("leaveGroup", this.leaveGroup.bind(this));
         }
-        // message
-        if (!this.socket.eventNames().includes("disconnect")) {
-            this.socket.on("disconnect", this.disconnect.bind(this));
+        // personalChat
+        if (!this.socket.eventNames().includes("personalChat")) {
+            this.socket.on("personalChat", this.personalChat.bind(this));
         }
-        // delete message
-        if (!this.socket.eventNames().includes("disconnect")) {
-            this.socket.on("disconnect", this.disconnect.bind(this));
+        // groupChat message
+        if (!this.socket.eventNames().includes("groupChatMessage")) {
+            this.socket.on("groupChatMessage", this.groupChatMessage.bind(this));
+        }
+        // deleteProfiles
+        if (!this.socket.eventNames().includes("groupChatMessage")) {
+            this.socket.on("deleteProfile", this.deleteProfile.bind(this));
+        }
+        // groupChat
+        if (!this.socket.eventNames().includes("groupChat")) {
+            this.socket.on("groupChat", this.groupChat.bind(this));
         }
         //logout
-        if (!this.socket.eventNames().includes("disconnect")) {
-            this.socket.on("disconnect", this.disconnect.bind(this));
+        if (!this.socket.eventNames().includes("logOut")) {
+            this.socket.on("logOut", this.logOut.bind(this));
         }
     }
     async toDos() {
@@ -67,6 +75,7 @@ class rootSocket {
             await models_1.User.findByIdAndUpdate({ _id: db_1.M.mongify(this.userId) }, {
                 socketId: null,
                 isOnline: false,
+                lastSeen: new Date()
             });
             console.log(`User ${this.userId} disconnected with socketId: ${this.socket.id}`);
         }
@@ -197,7 +206,7 @@ class rootSocket {
             console.error(`Failed to update`);
         }
     }
-    async groupChat(body, _ack) {
+    async groupChatMessage(body, _ack) {
         try {
             const [sender, channel] = await Promise.all([
                 models_1.User.findById(this.userId).lean(),
@@ -269,6 +278,45 @@ class rootSocket {
                 success: response_1.response.SUCCESS.code,
                 errormessage: response_1.response.SUCCESS.message,
                 response: "Message Sent",
+            });
+        }
+        catch (err) {
+            console.error(`Failed to update`);
+        }
+    }
+    async groupChat(body, _ack) {
+        try {
+            const [sender, channel] = await Promise.all([
+                models_1.User.findById(this.userId).lean(),
+                models_1.Channel.findById(body.chatId).lean(),
+            ]);
+            if (!sender) {
+                return _ack?.({
+                    success: response_1.response.USER_NOT_FOUND.code,
+                    errormessage: response_1.response.USER_NOT_FOUND.message,
+                });
+            }
+            if (!channel) {
+                return _ack?.({
+                    success: response_1.response.CHANNEL_NOT_FOUND.code,
+                    errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
+                });
+            }
+            const chats = await models_1.Message.find({ channelId: channel._id }, { senderId: 1, message: 1, readBy: 1 }).lean();
+            const userIds = chats.map((chat) => chat.senderId);
+            const users = await models_1.User.find({ _id: { $in: userIds } }, { name: 1 }).lean();
+            const messagesWithUserNames = chats.map((chat) => {
+                const user = users.find((u) => u._id.toString() === chat.senderId.toString());
+                return {
+                    message: chat.message,
+                    name: user ? user.name : "Unknown",
+                    readBy: chat.readBy,
+                };
+            });
+            return _ack?.({
+                success: response_1.response.SUCCESS.code,
+                errormessage: response_1.response.SUCCESS.message,
+                response: messagesWithUserNames ?? [],
             });
         }
         catch (err) {
