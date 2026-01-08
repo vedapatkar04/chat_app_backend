@@ -40,10 +40,9 @@ exports.connectDB = connectDB;
 class M {
     static mongify(id) {
         console.log(id);
-        return new mongoose_1.Types.ObjectId(id);
+        return new mongoose_1.Schema.Types.ObjectId(id);
     }
 }
 exports.M = M;
-M.id = mongoose_1.Schema.Types.ObjectId;
 const mongooseInstance = new M();
 exports.mongoose = mongooseInstance;

@@ -11,10 +11,9 @@ export const connectDB = async (): Promise<void> => {
 };
 
 class M {
-  static id = Schema.Types.ObjectId;
   static mongify(id: string) {
     console.log(id)
-    return new Types.ObjectId(id);
+    return new Schema.Types.ObjectId(id);
   }
 }
 
