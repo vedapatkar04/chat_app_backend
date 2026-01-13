@@ -286,6 +286,7 @@ class rootSocket {
                     errormessage: response_1.response.CLIENT_ERROR.message,
                 });
             if (body.type == 1) {
+                console.log("Inside type 1");
                 if (!body.channelId)
                     return _ack?.({
                         success: response_1.response.CLIENT_ERROR.code,
@@ -294,7 +295,20 @@ class rootSocket {
                 const [sender, channel] = await Promise.all([
                     models_1.User.findById(db_1.M.mongify(this.userId)).lean(),
                     models_1.Channel.findById(db_1.M.mongify(body.channelId)).lean(),
+                    ,
                 ]);
+                async function convo(conversation) {
+                    try {
+                        const convo = await models_1.Conversation.findOne({
+                            channelId: conversation,
+                        }).lean();
+                        return convo;
+                    }
+                    catch (err) { }
+                }
+                let convo_doc = await convo(channel?._id);
+                console.log(convo_doc);
+                const user_list = channel?.users.map((p) => p.userId.toString());
                 if (!sender) {
                     return _ack?.({
                         success: response_1.response.USER_NOT_FOUND.code,
@@ -307,15 +321,27 @@ class rootSocket {
                         errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
                     });
                 }
-                await models_1.Message.create({
+                const message_created = new models_1.Message({
                     senderId: sender._id,
                     channelId: channel._id,
                     message: body.message ?? "",
                     chatType: models_1.EChatType.group,
                     status: models_1.EMessageStatus.sent,
                 });
+                if (!convo_doc) {
+                    console.log("Inside convo");
+                    convo_doc = await models_1.Conversation.create({
+                        channelId: channel._id,
+                        users: user_list,
+                        chatType: models_1.EChatType.group,
+                        message: [],
+                    });
+                    if (message_created) {
+                        convo_doc.message.push(message_created._id);
+                    }
+                }
             }
-            if (body.type == 2) {
+            else if (body.type == 2) {
                 const [sender, receiver] = await Promise.all([
                     models_1.User.findById(db_1.M.mongify(this.userId)).lean(),
                     models_1.User.findById(db_1.M.mongify(body.userId)).lean(),

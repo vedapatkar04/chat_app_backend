@@ -1,6 +1,7 @@
 import { Socket } from "socket.io";
 import {
   Channel,
+  Conversation,
   EChannelStatus,
   EChatType,
   EMessageStatus,
@@ -11,6 +12,7 @@ import {
 import { response as RES } from "./util/response";
 import { M, Types } from "./config/db";
 import { response } from "express";
+import { ObjectId } from "mongoose";
 
 export class rootSocket {
   socket: Socket;
@@ -398,6 +400,7 @@ export class rootSocket {
         });
 
       if (body.type == 1) {
+        console.log("Inside type 1");
         if (!body.channelId)
           return _ack?.({
             success: RES.CLIENT_ERROR.code,
@@ -407,7 +410,21 @@ export class rootSocket {
         const [sender, channel] = await Promise.all([
           User.findById(M.mongify(this.userId)).lean(),
           Channel.findById(M.mongify(body.channelId)).lean(),
+          ,
         ]);
+
+        async function convo(conversation: ObjectId) {
+          try {
+            const convo = await Conversation.findOne({
+              channelId: conversation,
+            }).lean();
+            return convo;
+          } catch (err) {}
+        }
+        let convo_doc = await convo(channel?._id!);
+
+        console.log(convo_doc);
+        const user_list = channel?.users.map((p) => p.userId.toString());
 
         if (!sender) {
           return _ack?.({
@@ -423,15 +440,28 @@ export class rootSocket {
           });
         }
 
-        await Message.create({
+        const message_created = new Message({
           senderId: sender._id,
           channelId: channel._id,
           message: body.message ?? "",
           chatType: EChatType.group,
           status: EMessageStatus.sent,
         });
-      }
-      if (body.type == 2) {
+
+        if (!convo_doc) {
+          console.log("Inside convo");
+          convo_doc = await Conversation.create({
+            channelId: channel._id,
+            users: user_list,
+            chatType: EChatType.group,
+            message: [],
+          });
+
+          if (message_created) {
+            convo_doc.message.push(message_created._id);
+          }
+        }
+      } else if (body.type == 2) {
         const [sender, receiver] = await Promise.all([
           User.findById(M.mongify(this.userId)).lean(),
           User.findById(M.mongify(body.userId)).lean(),
@@ -609,4 +639,3 @@ export class rootSocket {
     }
   }
 }
- 

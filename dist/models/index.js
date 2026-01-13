@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.User = exports.EChatType = exports.EMessageStatus = exports.Message = exports.EChannelStatus = exports.Channel = void 0;
+exports.Conversation = exports.User = exports.EChatType = exports.EMessageStatus = exports.Message = exports.EChannelStatus = exports.Channel = void 0;
 var Channels_1 = require("./library/Channels");
 Object.defineProperty(exports, "Channel", { enumerable: true, get: function () { return Channels_1.Channel; } });
 Object.defineProperty(exports, "EChannelStatus", { enumerable: true, get: function () { return Channels_1.EChannelStatus; } });
@@ -10,3 +10,5 @@ Object.defineProperty(exports, "EMessageStatus", { enumerable: true, get: functi
 Object.defineProperty(exports, "EChatType", { enumerable: true, get: function () { return Messages_1.EChatType; } });
 var User_1 = require("./library/User");
 Object.defineProperty(exports, "User", { enumerable: true, get: function () { return User_1.User; } });
+var Convo_1 = require("./library/Convo");
+Object.defineProperty(exports, "Conversation", { enumerable: true, get: function () { return Convo_1.Conversation; } });

@@ -39,7 +39,6 @@ const connectDB = async () => {
 exports.connectDB = connectDB;
 class M {
     static mongify(id) {
-        console.log(id);
         return new mongoose_1.Schema.Types.ObjectId(id);
     }
 }

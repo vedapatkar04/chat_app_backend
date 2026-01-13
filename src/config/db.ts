@@ -1,4 +1,4 @@
-import mongoose, { Schema, set, Types } from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 
 export const connectDB = async (): Promise<void> => {
   try {
@@ -12,8 +12,7 @@ export const connectDB = async (): Promise<void> => {
 
 class M {
   static mongify(id: string) {
-    console.log(id)
-    return new Schema.Types.ObjectId(id);
+     return new Schema.Types.ObjectId(id);
   }
 }
 
