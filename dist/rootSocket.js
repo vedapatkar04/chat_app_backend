@@ -48,10 +48,6 @@ class rootSocket {
         if (!this.socket.eventNames().includes("chat")) {
             this.socket.on("chat", this.chat.bind(this));
         }
-        // personalChat
-        if (!this.socket.eventNames().includes("personalChat")) {
-            this.socket.on("personalChat", this.personalChat.bind(this));
-        }
         // deleteProfiles
         if (!this.socket.eventNames().includes("deleteProfiles")) {
             this.socket.on("deleteProfile", this.deleteProfile.bind(this));
@@ -140,6 +136,7 @@ class rootSocket {
                 users,
                 status: models_1.EChannelStatus.active,
             });
+            users.forEach((u) => this.socket.to(u).emit("groupCreated", channel));
             if (typeof _ack === "function")
                 return _ack?.({
                     success: response_1.response.SUCCESS.code,
@@ -285,30 +282,12 @@ class rootSocket {
                     success: response_1.response.CLIENT_ERROR.code,
                     errormessage: response_1.response.CLIENT_ERROR.message,
                 });
-            if (body.type == 1) {
-                console.log("Inside type 1");
-                if (!body.channelId)
-                    return _ack?.({
-                        success: response_1.response.CLIENT_ERROR.code,
-                        errormessage: response_1.response.CLIENT_ERROR.message,
-                    });
+            if (body.type === 1 && body.channelId) {
+                const channelId = db_1.M.mongify(body.channelId);
                 const [sender, channel] = await Promise.all([
                     models_1.User.findById(db_1.M.mongify(this.userId)).lean(),
-                    models_1.Channel.findById(db_1.M.mongify(body.channelId)).lean(),
-                    ,
+                    models_1.Channel.findById(channelId).lean(),
                 ]);
-                async function convo(conversation) {
-                    try {
-                        const convo = await models_1.Conversation.findOne({
-                            channelId: conversation,
-                        }).lean();
-                        return convo;
-                    }
-                    catch (err) { }
-                }
-                let convo_doc = await convo(channel?._id);
-                console.log(convo_doc);
-                const user_list = channel?.users.map((p) => p.userId.toString());
                 if (!sender) {
                     return _ack?.({
                         success: response_1.response.USER_NOT_FOUND.code,
@@ -321,63 +300,28 @@ class rootSocket {
                         errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
                     });
                 }
-                const message_created = new models_1.Message({
+                const message = await models_1.Message.create({
                     senderId: sender._id,
                     channelId: channel._id,
                     message: body.message ?? "",
                     chatType: models_1.EChatType.group,
                     status: models_1.EMessageStatus.sent,
                 });
-                if (!convo_doc) {
-                    console.log("Inside convo");
-                    convo_doc = await models_1.Conversation.create({
-                        channelId: channel._id,
-                        users: user_list,
+                await models_1.Conversation.findOneAndUpdate({ channelId: channel._id }, {
+                    $setOnInsert: {
+                        channelId,
                         chatType: models_1.EChatType.group,
-                        message: [],
-                    });
-                    if (message_created) {
-                        convo_doc.message.push(message_created._id);
-                    }
-                }
-            }
-            else if (body.type == 2) {
-                const [sender, receiver] = await Promise.all([
-                    models_1.User.findById(db_1.M.mongify(this.userId)).lean(),
-                    models_1.User.findById(db_1.M.mongify(body.userId)).lean(),
-                ]);
-                if (!sender) {
-                    return _ack?.({
-                        success: response_1.response.USER_NOT_FOUND.code,
-                        errormessage: response_1.response.USER_NOT_FOUND.message,
-                    });
-                }
-                if (!receiver) {
-                    return _ack?.({
-                        success: response_1.response.USER_NOT_FOUND.code,
-                        errormessage: response_1.response.USER_NOT_FOUND.message,
-                    });
-                }
-                await models_1.Message.create({
-                    senderId: sender._id,
-                    receiverId: receiver._id,
-                    message: body.message ?? "",
-                    chatType: models_1.EChatType.personal,
-                    status: models_1.EMessageStatus.sent,
-                });
-            }
-            else {
-                return _ack?.({
-                    success: response_1.response.INVALID.code,
-                    errormessage: response_1.response.INVALID.message,
-                });
-            }
-            if (typeof _ack === "function")
+                        users: [],
+                    },
+                    $push: { message: message._id },
+                }, { upsert: true });
+                this.socket.to(channelId.toString()).emit("newMessage", message);
                 return _ack?.({
                     success: response_1.response.SUCCESS.code,
                     errormessage: response_1.response.SUCCESS.message,
-                    response: "Message Sent",
+                    response: message,
                 });
+            }
         }
         catch (err) {
             console.error(`Failed to update`);
@@ -385,32 +329,59 @@ class rootSocket {
     }
     async chat(body, _ack) {
         try {
-            const channel = await models_1.Channel.findById(db_1.M.mongify(body.chatId)).lean();
-            if (!channel)
+            if (!body.type)
                 return _ack?.({
-                    success: response_1.response.CHANNEL_NOT_FOUND.code,
-                    errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
+                    success: response_1.response.CLIENT_ERROR.code,
+                    errormessage: response_1.response.CLIENT_ERROR.message,
                 });
-            const chats = await models_1.Message.find({ channelId: channel._id }, { senderId: 1, message: 1, readBy: 1 }).lean();
-            const userIds = chats.map((chat) => chat.senderId);
-            const users = await models_1.User.find({ _id: { $in: userIds } }, { name: 1 }).lean();
-            const messagesWithUserNames = chats.map((chat) => {
-                const user = users.find((u) => u._id.toString() === chat.senderId.toString());
-                return {
-                    message: chat.message,
-                    name: user ? user.name : "Unknown",
-                    readBy: chat.readBy,
-                };
-            });
-            if (typeof _ack === "function")
+            let conversation;
+            if (body.type == models_1.EChatType.group && body.channelId) {
+                const channelId = db_1.M.mongify(body.channelId);
+                const channel = await models_1.Channel.findById(channelId).lean();
+                conversation = await models_1.Conversation.findOne({ channelId: channel?._id }).lean();
+            }
+            else if (body.type == models_1.EChatType.personal && body.userId) {
+                const senderId = db_1.M.mongify(this.userId);
+                const receiverId = db_1.M.mongify(body.userId);
+                conversation = await models_1.Conversation.findOne({
+                    chatType: models_1.EChatType.personal,
+                    users: { $all: [senderId, receiverId], $size: 2 },
+                }).lean();
+            }
+            else {
+                return _ack?.({
+                    success: response_1.response.CLIENT_ERROR.code,
+                    errormessage: "chatId or userId required",
+                });
+            }
+            if (!conversation) {
                 return _ack?.({
                     success: response_1.response.SUCCESS.code,
                     errormessage: response_1.response.SUCCESS.message,
-                    response: messagesWithUserNames ?? [],
+                    response: [],
                 });
+            }
+            const messages = await models_1.Message.find({ _id: { $in: conversation.message } }, { senderId: 1, message: 1, readBy: 1, createdAt: 1 }).lean();
+            const userIds = messages.map((msg) => msg.senderId);
+            const users = await models_1.User.find({ _id: { $in: userIds } }, { name: 1 }).lean();
+            const messagesWithUserNames = messages.map((msg) => {
+                const user = users.find((u) => u._id.toString() === msg.senderId.toString());
+                return {
+                    _id: msg._id,
+                    message: msg.message,
+                    senderName: user ? user.name : "Unknown",
+                    readBy: msg.readBy,
+                    createdAt: msg.dCreatedAt,
+                };
+            });
+            return _ack?.({
+                success: response_1.response.SUCCESS.code,
+                errormessage: response_1.response.SUCCESS.message,
+                response: messagesWithUserNames,
+            });
         }
         catch (err) {
-            console.error(`Failed to update`);
+            console.error("Failed to fetch chat:", err);
         }
     }
     async logOut(body, _ack) {
@@ -454,24 +425,6 @@ class rootSocket {
                     success: response_1.response.SUCCESS.code,
                     errormessage: response_1.response.SUCCESS.message,
                     response: "Deleted Successfully",
-                });
-        }
-        catch (err) {
-            console.error(`Failed to update`);
-        }
-    }
-    async personalChat(body, _ack) {
-        try {
-            const messages = await models_1.Message.find({
-                chatType: models_1.EChatType.personal,
-            }).lean();
-            const filtered_nessages = messages.filter((p) => p.senderId.toString() === this.userId &&
-                p.receiverId?.toString() === body.userId);
-            if (typeof _ack === "function")
-                return _ack?.({
-                    success: response_1.response.SUCCESS.code,
-                    errormessage: response_1.response.SUCCESS.message,
-                    response: filtered_nessages,
                 });
         }
         catch (err) {
