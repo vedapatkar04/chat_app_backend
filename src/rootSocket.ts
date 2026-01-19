@@ -57,29 +57,9 @@ export class rootSocket {
       this.socket.on("createGroup", this.createGroup.bind(this));
     }
 
-    // addUserInGroup
-    if (!this.socket.eventNames().includes("addUserInGroup")) {
-      this.socket.on("addUserInGroup", this.addUserInGroup.bind(this));
-    }
-
-    // joinGroup
-    if (!this.socket.eventNames().includes("joinGroup")) {
-      this.socket.on("joinGroup", this.joinGroup.bind(this));
-    }
-
-    // leave group
-    if (!this.socket.eventNames().includes("leaveGroup")) {
-      this.socket.on("leaveGroup", this.leaveGroup.bind(this));
-    }
-
     // message
     if (!this.socket.eventNames().includes("message")) {
       this.socket.on("message", this.message.bind(this));
-    }
-
-    // groupChat message
-    if (!this.socket.eventNames().includes("chat")) {
-      this.socket.on("chat", this.chat.bind(this));
     }
 
     // deleteProfiles
@@ -87,7 +67,6 @@ export class rootSocket {
       this.socket.on("deleteProfile", this.deleteProfile.bind(this));
     }
 
-    
     //logout
     if (!this.socket.eventNames().includes("logOut")) {
       this.socket.on("logOut", this.logOut.bind(this));
@@ -250,7 +229,6 @@ export class rootSocket {
       };
     });
  
-    console.log(dashboard);
 
     return _ack?.({
       success: RES.SUCCESS.code,
@@ -314,183 +292,6 @@ export class rootSocket {
           success: RES.SUCCESS.code,
           errormessage: RES.SUCCESS.message,
           response: channel,
-        });
-    } catch (err) {
-      console.error(`Failed to update`);
-    }
-  }
-
-  private async addUserInGroup(
-    body: {
-      channelId: string;
-      participants: { userId: string; userName: string }[];
-    },
-    _ack?: Function
-  ) {
-    try {
-      const [creator, channel] = await Promise.all([
-        User.findById(M.mongify(this.userId)).lean(),
-        Channel.findById(M.mongify(body.channelId)),
-      ]);
-
-      if (!creator) {
-        return _ack?.({
-          success: RES.USER_NOT_FOUND.code,
-          errormessage: RES.USER_NOT_FOUND.message,
-        });
-      }
-      if (!channel) {
-        return _ack?.({
-          success: RES.CHANNEL_NOT_FOUND.code,
-          errormessage: RES.CHANNEL_NOT_FOUND.message,
-        });
-      }
-
-      const new_users: any = body.participants
-        .filter((p) => p.userId !== creator._id.toString())
-        .map((p) => ({
-          userId: M.mongify(p.userId),
-          userName: p.userName ?? "",
-        }));
-
-      const data = await Channel.findByIdAndUpdate(
-        channel._id,
-        {
-          $addToSet: {
-            users: {
-              $each: new_users,
-            },
-          },
-        },
-        { new: true }
-      );
-
-      if (typeof _ack === "function")
-        return _ack?.({
-          success: RES.SUCCESS.code,
-          errormessage: RES.SUCCESS.message,
-          response: data,
-        });
-    } catch (err) {
-      console.error(`Failed to update`);
-    }
-  }
-
-  private async joinGroup(
-    body: {
-      channelId: string;
-    },
-    _ack?: Function
-  ) {
-    try {
-      const [user, channel] = await Promise.all([
-        User.findById(M.mongify(this.userId)).lean(),
-        Channel.findById(M.mongify(body.channelId)),
-      ]);
-
-      if (!user) {
-        return _ack?.({
-          success: RES.USER_NOT_FOUND.code,
-          errormessage: RES.USER_NOT_FOUND.message,
-        });
-      }
-      if (!channel) {
-        return _ack?.({
-          success: RES.CHANNEL_NOT_FOUND.code,
-          errormessage: RES.CHANNEL_NOT_FOUND.message,
-        });
-      }
-
-      const data = await Channel.findByIdAndUpdate(
-        channel._id,
-        {
-          $addToSet: {
-            users: {
-              userId: user._id,
-              userName: user.userName,
-            },
-          },
-        },
-        { new: true }
-      );
-
-      if (typeof _ack === "function")
-        return _ack?.({
-          success: RES.SUCCESS.code,
-          errormessage: RES.SUCCESS.message,
-          response: data,
-        });
-    } catch (err) {
-      console.error(`Failed to update`);
-    }
-  }
-
-  private async leaveGroup(
-    body: {
-      channelId: string;
-      kickUser: boolean;
-      userId?: string;
-    },
-    _ack?: Function
-  ) {
-    try {
-      const [creator, channel] = await Promise.all([
-        User.findById(this.userId).lean(),
-        Channel.findById({ _id: M.mongify(body.channelId) }).lean(),
-      ]);
-
-      if (!creator) {
-        return _ack?.({
-          success: RES.USER_NOT_FOUND.code,
-          errormessage: RES.USER_NOT_FOUND.message,
-        });
-      }
-
-      if (!channel) {
-        return _ack?.({
-          success: RES.CHANNEL_NOT_FOUND.code,
-          errormessage: RES.CHANNEL_NOT_FOUND.message,
-        });
-      }
-
-      if (!body.kickUser)
-        return _ack?.({
-          success: RES.CLIENT_ERROR.code,
-          errormessage: RES.CLIENT_ERROR.message,
-        });
-
-      let updatedChannel;
-
-      if (body.kickUser === true) {
-        //
-        if (!body.userId)
-          return _ack?.({
-            success: RES.CLIENT_ERROR.code,
-            errormessage: RES.CLIENT_ERROR.message,
-          });
-
-        const user_to_remove = await User.findById(
-          M.mongify(body.userId)
-        ).lean();
-
-        updatedChannel = await Channel.findByIdAndUpdate(
-          M.mongify(body.channelId),
-          { $pull: { users: { userId: user_to_remove?._id } } },
-          { new: true }
-        );
-      } else {
-        updatedChannel = await Channel.findByIdAndUpdate(
-          M.mongify(body.channelId),
-          { $pull: { users: { userId: M.mongify(this.userId) } } },
-          { new: true }
-        );
-      }
-
-      if (typeof _ack === "function")
-        return _ack?.({
-          success: RES.SUCCESS.code,
-          errormessage: RES.SUCCESS.message,
-          response: updatedChannel,
         });
     } catch (err) {
       console.error(`Failed to update`);
@@ -628,75 +429,6 @@ export class rootSocket {
     }
   }
 
-  private async chat(
-  body: { channelId?: string; type: number; userId?: string },
-  _ack?: Function
-) {
-  try {
-    if(!body.type) return _ack?.({
-          success: RES.CLIENT_ERROR.code,
-          errormessage: RES.CLIENT_ERROR.message,
-        });
-
-    let conversation;
-
-    if (body.type == EChatType.group && body.channelId) {
-      const channelId = M.mongify(body.channelId);
-      const channel = await Channel.findById(channelId).lean();
-      conversation = await Conversation.findOne({ channelId: channel?._id }).lean();
-    } else if (body.type == EChatType.personal && body.userId) {
-      const senderId = M.mongify(this.userId);
-      const receiverId = M.mongify(body.userId);
-
-      conversation = await Conversation.findOne({
-        chatType: EChatType.personal,
-        users: { $all: [senderId, receiverId], $size: 2 },
-      }).lean();
-    } else {
-      return _ack?.({
-        success: RES.CLIENT_ERROR.code,
-        errormessage: "chatId or userId required",
-      });
-    }
-
-    if (!conversation) {
-      return _ack?.({
-        success: RES.SUCCESS.code,
-        errormessage: RES.SUCCESS.message,
-        response: [],
-      });
-    }
-
-    const messages = await Message.find(
-      { _id: { $in: conversation.message } },
-      { senderId: 1, message: 1, readBy: 1, createdAt: 1 }
-    ).lean();
-
-    const userIds = messages.map((msg) => msg.senderId);
-    const users = await User.find({ _id: { $in: userIds } }, { name: 1 }).lean();
-
-    const messagesWithUserNames = messages.map((msg) => {
-      const user = users.find((u) => u._id.toString() === msg.senderId.toString());
-      return {
-        _id: msg._id,
-        message: msg.message,
-        senderName: user ? user.name : "Unknown",
-        readBy: msg.readBy,
-        createdAt: msg.dCreatedAt,
-      };
-    });
-
-    return _ack?.({
-      success: RES.SUCCESS.code,
-      errormessage: RES.SUCCESS.message,
-      response: messagesWithUserNames,
-    });
-  } catch (err) {
-    console.error("Failed to fetch chat:", err);
-  }
-}
-
-
   private async logOut(body: {}, _ack?: Function) {
     try {
       const user = await User.findById(M.mongify(this.userId)).lean();
@@ -739,6 +471,11 @@ export class rootSocket {
         Channel.findByIdAndUpdate(
           { "users.userId": M.mongify(this.userId) },
           { $pull: { users: { userId: M.mongify(this.userId) } } },
+          { new: true }
+        ),
+        Conversation.findByIdAndUpdate(
+          { "users.userId": M.mongify(this.userId) },
+          { $pull: { users:  this.userId} },
           { new: true }
         ),
       ]);
