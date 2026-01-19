@@ -245,7 +245,7 @@ export class rootSocket {
       return {
         chatId: conv._id,
         type: EChatType.personal,
-        name: otherUser?.name ?? "Unknown User",
+        name: otherUser?.name ?? otherUser?.userName ?? "Unknown User",
         userId: otherUserId,
       };
     });
@@ -297,6 +297,13 @@ export class rootSocket {
         users,
         status: EChannelStatus.active,
       });
+
+      await Conversation.create({
+        channelId: channel._id,
+        chatType: EChatType.group,
+        users: users.map((p: any) => p.userId.toString()),
+        message: [],
+      })
 
       users.forEach((u: any) =>
         this.socket.to(u).emit("groupCreated", channel)
@@ -500,6 +507,7 @@ export class rootSocket {
     _ack?: Function
   ) {
     try {
+      console.log("Body", body.userId)
       if (!body.type)
         return _ack?.({
           success: RES.CLIENT_ERROR.code,
@@ -586,17 +594,26 @@ export class rootSocket {
           status: EMessageStatus.sent,
         });
 
-        await Conversation.findOneAndUpdate(
-          { users:{ $in : [this.userId, body.userId] }},
-          {
-            $setOnInsert: {
-              chatType: EChatType.personal,
-              users: [this.userId, body.userId],
+        const convo = await Conversation.findOne({ users: { $all: [this.userId, body.userId] }},).lean()
+        console.log("Convp", convo)
+        if (convo) {
+
+          await Conversation.findOneAndUpdate(
+            { users: { $all: [this.userId, body.userId] }},
+            {
+              $push: { message: message._id },
             },
-            $push: { message: message._id },
-          },
-          { upsert: true }
-        );
+            { upsert: true }
+          );
+        } else {
+           await Conversation.insertOne(
+              {
+                chatType: EChatType.personal,
+                users: [this.userId, body.userId],
+                message: [message._id ],
+              },
+          )
+        }
 
         this.socket.to(body.userId).emit("newMessage", message);
 

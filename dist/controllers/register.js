@@ -10,6 +10,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 async function register(req, res) {
     try {
         const { userName, email, password } = req.body;
+        console.log("I am here ");
         //if user exist
         const existing_user = await models_1.User.findOne({ email: email }).lean();
         if (existing_user)
