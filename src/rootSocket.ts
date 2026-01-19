@@ -42,6 +42,16 @@ export class rootSocket {
       this.socket.on("updateProfile", this.updateProfile.bind(this));
     }
 
+    // users
+    if (!this.socket.eventNames().includes("userList")) {
+      this.socket.on("userList", this.userList.bind(this));
+    }
+
+    // fetch all chats
+    if (!this.socket.eventNames().includes("dashBoard")) {
+      this.socket.on("dashBoard", this.dashBoard.bind(this));
+    }
+
     //create group
     if (!this.socket.eventNames().includes("createGroup")) {
       this.socket.on("createGroup", this.createGroup.bind(this));
@@ -77,6 +87,7 @@ export class rootSocket {
       this.socket.on("deleteProfile", this.deleteProfile.bind(this));
     }
 
+    
     //logout
     if (!this.socket.eventNames().includes("logOut")) {
       this.socket.on("logOut", this.logOut.bind(this));
@@ -151,6 +162,103 @@ export class rootSocket {
     } catch (err) {
       console.error(`Failed to update`);
     }
+  }
+
+
+  private async userList(body: { }, _ack?: Function) {
+    try {
+      const user = await User.find({}).lean();
+      if (typeof _ack === "function")
+        return _ack({
+          success: RES.SUCCESS.code,
+          errormessage: RES.SUCCESS.message,
+          response: user || [],
+        });
+    } catch (err) {
+      console.error(`Failed to update`);
+    }
+  }
+
+  private async dashBoard(body: {  }, _ack?: Function) {
+    try {
+      const userId = M.mongify(this.userId);
+
+    const conversations = await Conversation.find({
+      $or: [
+        { channelId: { $exists: true } }, // group chats
+        { users: userId.toString() }, // personal chats
+      ],
+    }).lean();
+
+    console.log("Conversation", conversations)
+    if (!conversations.length) {
+      return _ack?.({
+        success: RES.SUCCESS.code,
+        errormessage: RES.SUCCESS.message,
+        response: [],
+      });
+    }
+
+    const groupConvos = conversations.filter(
+      (c) => c.chatType === EChatType.group && c.channelId
+    );
+
+    const channelIds = groupConvos.map((c) => c.channelId);
+    const channels = await Channel.find(
+      { _id: { $in: channelIds } },
+      { channelName: 1 }
+    ).lean();
+
+    const all_users = await User.find({}).lean();
+
+    const users = all_users.filter((p) => p._id.toString() != this.userId)
+    console.log("Users ", users)
+
+    const dashboard = conversations.map((conv) => {
+      // GROUP CHAT
+      if (conv.chatType === EChatType.group) {
+        const channel = channels.find(
+          (c) => c._id.toString() === conv.channelId?.toString()
+        );
+
+        return {
+          chatId: conv._id,
+          type: EChatType.group,
+          name: channel?.channelName ?? "Unknown Group",
+          channelId: conv.channelId,
+        };
+      }
+
+      // PERSONAL CHAT 
+     const otherUserId = conv.users.includes(this.userId)
+  ? conv.users.find(id => id !== this.userId)
+  : null;
+          console.log("otherUserId ", otherUserId)
+
+
+      const otherUser = users.find(
+        (u) => u._id.toString() === otherUserId?.toString()
+      );
+
+          console.log("otherUser ", users)
+
+      return {
+        chatId: conv._id,
+        type: EChatType.personal,
+        name: otherUser?.name ?? "Unknown User",
+        userId: otherUserId,
+      };
+    });
+ 
+    console.log(dashboard);
+
+    return _ack?.({
+      success: RES.SUCCESS.code,
+      errormessage: RES.SUCCESS.message,
+      response: dashboard,
+    });
+
+    } catch (err) {}
   }
 
   private async createGroup(
@@ -448,6 +556,55 @@ export class rootSocket {
           errormessage: RES.SUCCESS.message,
           response: message,
         });
+      } else if (body.type === 2 && body.userId) {
+        const user_Id = M.mongify(body.userId);
+
+        const [sender, receiverId] = await Promise.all([
+          User.findById(M.mongify(this.userId)).lean(),
+          User.findById(M.mongify(body.userId)).lean(),
+        ]);
+
+        if (!sender) {
+          return _ack?.({
+            success: RES.USER_NOT_FOUND.code,
+            errormessage: RES.USER_NOT_FOUND.message,
+          });
+        }
+
+        if (!receiverId) {
+          return _ack?.({
+            success: RES.USER_NOT_FOUND.code,
+            errormessage: RES.USER_NOT_FOUND.message,
+          });
+        }
+
+        const message = await Message.create({
+          senderId: sender._id,
+          receiverId: receiverId._id,
+          message: body.message ?? "",
+          chatType: EChatType.personal,
+          status: EMessageStatus.sent,
+        });
+
+        await Conversation.findOneAndUpdate(
+          { users:{ $in : [this.userId, body.userId] }},
+          {
+            $setOnInsert: {
+              chatType: EChatType.personal,
+              users: [this.userId, body.userId],
+            },
+            $push: { message: message._id },
+          },
+          { upsert: true }
+        );
+
+        this.socket.to(body.userId).emit("newMessage", message);
+
+        return _ack?.({
+          success: RES.SUCCESS.code,
+          errormessage: RES.SUCCESS.message,
+          response: message,
+        });
       }
     } catch (err) {
       console.error(`Failed to update`);
@@ -463,7 +620,7 @@ export class rootSocket {
           success: RES.CLIENT_ERROR.code,
           errormessage: RES.CLIENT_ERROR.message,
         });
-        
+
     let conversation;
 
     if (body.type == EChatType.group && body.channelId) {
