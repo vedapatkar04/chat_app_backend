@@ -36,25 +36,9 @@ class rootSocket {
         if (!this.socket.eventNames().includes("createGroup")) {
             this.socket.on("createGroup", this.createGroup.bind(this));
         }
-        // addUserInGroup
-        if (!this.socket.eventNames().includes("addUserInGroup")) {
-            this.socket.on("addUserInGroup", this.addUserInGroup.bind(this));
-        }
-        // joinGroup
-        if (!this.socket.eventNames().includes("joinGroup")) {
-            this.socket.on("joinGroup", this.joinGroup.bind(this));
-        }
-        // leave group
-        if (!this.socket.eventNames().includes("leaveGroup")) {
-            this.socket.on("leaveGroup", this.leaveGroup.bind(this));
-        }
         // message
         if (!this.socket.eventNames().includes("message")) {
             this.socket.on("message", this.message.bind(this));
-        }
-        // groupChat message
-        if (!this.socket.eventNames().includes("chat")) {
-            this.socket.on("chat", this.chat.bind(this));
         }
         // deleteProfiles
         if (!this.socket.eventNames().includes("deleteProfiles")) {
@@ -137,7 +121,7 @@ class rootSocket {
             const userId = db_1.M.mongify(this.userId);
             const conversations = await models_1.Conversation.find({
                 $or: [
-                    { channelId: { $exists: true } }, // group chats
+                    { users: userId.toString(), channelId: { $exists: true } }, // group chats
                     { users: userId.toString() }, // personal chats
                 ],
             }).lean();
@@ -180,7 +164,6 @@ class rootSocket {
                     userId: otherUserId,
                 };
             });
-            console.log(dashboard);
             return _ack?.({
                 success: response_1.response.SUCCESS.code,
                 errormessage: response_1.response.SUCCESS.message,
@@ -233,133 +216,6 @@ class rootSocket {
             console.error(`Failed to update`);
         }
     }
-    async addUserInGroup(body, _ack) {
-        try {
-            const [creator, channel] = await Promise.all([
-                models_1.User.findById(db_1.M.mongify(this.userId)).lean(),
-                models_1.Channel.findById(db_1.M.mongify(body.channelId)),
-            ]);
-            if (!creator) {
-                return _ack?.({
-                    success: response_1.response.USER_NOT_FOUND.code,
-                    errormessage: response_1.response.USER_NOT_FOUND.message,
-                });
-            }
-            if (!channel) {
-                return _ack?.({
-                    success: response_1.response.CHANNEL_NOT_FOUND.code,
-                    errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
-                });
-            }
-            const new_users = body.participants
-                .filter((p) => p.userId !== creator._id.toString())
-                .map((p) => ({
-                userId: db_1.M.mongify(p.userId),
-                userName: p.userName ?? "",
-            }));
-            const data = await models_1.Channel.findByIdAndUpdate(channel._id, {
-                $addToSet: {
-                    users: {
-                        $each: new_users,
-                    },
-                },
-            }, { new: true });
-            if (typeof _ack === "function")
-                return _ack?.({
-                    success: response_1.response.SUCCESS.code,
-                    errormessage: response_1.response.SUCCESS.message,
-                    response: data,
-                });
-        }
-        catch (err) {
-            console.error(`Failed to update`);
-        }
-    }
-    async joinGroup(body, _ack) {
-        try {
-            const [user, channel] = await Promise.all([
-                models_1.User.findById(db_1.M.mongify(this.userId)).lean(),
-                models_1.Channel.findById(db_1.M.mongify(body.channelId)),
-            ]);
-            if (!user) {
-                return _ack?.({
-                    success: response_1.response.USER_NOT_FOUND.code,
-                    errormessage: response_1.response.USER_NOT_FOUND.message,
-                });
-            }
-            if (!channel) {
-                return _ack?.({
-                    success: response_1.response.CHANNEL_NOT_FOUND.code,
-                    errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
-                });
-            }
-            const data = await models_1.Channel.findByIdAndUpdate(channel._id, {
-                $addToSet: {
-                    users: {
-                        userId: user._id,
-                        userName: user.userName,
-                    },
-                },
-            }, { new: true });
-            if (typeof _ack === "function")
-                return _ack?.({
-                    success: response_1.response.SUCCESS.code,
-                    errormessage: response_1.response.SUCCESS.message,
-                    response: data,
-                });
-        }
-        catch (err) {
-            console.error(`Failed to update`);
-        }
-    }
-    async leaveGroup(body, _ack) {
-        try {
-            const [creator, channel] = await Promise.all([
-                models_1.User.findById(this.userId).lean(),
-                models_1.Channel.findById({ _id: db_1.M.mongify(body.channelId) }).lean(),
-            ]);
-            if (!creator) {
-                return _ack?.({
-                    success: response_1.response.USER_NOT_FOUND.code,
-                    errormessage: response_1.response.USER_NOT_FOUND.message,
-                });
-            }
-            if (!channel) {
-                return _ack?.({
-                    success: response_1.response.CHANNEL_NOT_FOUND.code,
-                    errormessage: response_1.response.CHANNEL_NOT_FOUND.message,
-                });
-            }
-            if (!body.kickUser)
-                return _ack?.({
-                    success: response_1.response.CLIENT_ERROR.code,
-                    errormessage: response_1.response.CLIENT_ERROR.message,
-                });
-            let updatedChannel;
-            if (body.kickUser === true) {
-                //
-                if (!body.userId)
-                    return _ack?.({
-                        success: response_1.response.CLIENT_ERROR.code,
-                        errormessage: response_1.response.CLIENT_ERROR.message,
-                    });
-                const user_to_remove = await models_1.User.findById(db_1.M.mongify(body.userId)).lean();
-                updatedChannel = await models_1.Channel.findByIdAndUpdate(db_1.M.mongify(body.channelId), { $pull: { users: { userId: user_to_remove?._id } } }, { new: true });
-            }
-            else {
-                updatedChannel = await models_1.Channel.findByIdAndUpdate(db_1.M.mongify(body.channelId), { $pull: { users: { userId: db_1.M.mongify(this.userId) } } }, { new: true });
-            }
-            if (typeof _ack === "function")
-                return _ack?.({
-                    success: response_1.response.SUCCESS.code,
-                    errormessage: response_1.response.SUCCESS.message,
-                    response: updatedChannel,
-                });
-        }
-        catch (err) {
-            console.error(`Failed to update`);
-        }
-    }
     async message(body, _ack) {
         try {
             console.log("Body", body.userId);
@@ -397,7 +253,7 @@ class rootSocket {
                     $setOnInsert: {
                         channelId,
                         chatType: models_1.EChatType.group,
-                        users: [],
+                        users: channel.users.map(p => p.userId.toString()),
                     },
                     $push: { message: message._id },
                 }, { upsert: true });
@@ -459,63 +315,6 @@ class rootSocket {
             console.error(`Failed to update`);
         }
     }
-    async chat(body, _ack) {
-        try {
-            if (!body.type)
-                return _ack?.({
-                    success: response_1.response.CLIENT_ERROR.code,
-                    errormessage: response_1.response.CLIENT_ERROR.message,
-                });
-            let conversation;
-            if (body.type == models_1.EChatType.group && body.channelId) {
-                const channelId = db_1.M.mongify(body.channelId);
-                const channel = await models_1.Channel.findById(channelId).lean();
-                conversation = await models_1.Conversation.findOne({ channelId: channel?._id }).lean();
-            }
-            else if (body.type == models_1.EChatType.personal && body.userId) {
-                const senderId = db_1.M.mongify(this.userId);
-                const receiverId = db_1.M.mongify(body.userId);
-                conversation = await models_1.Conversation.findOne({
-                    chatType: models_1.EChatType.personal,
-                    users: { $all: [senderId, receiverId], $size: 2 },
-                }).lean();
-            }
-            else {
-                return _ack?.({
-                    success: response_1.response.CLIENT_ERROR.code,
-                    errormessage: "chatId or userId required",
-                });
-            }
-            if (!conversation) {
-                return _ack?.({
-                    success: response_1.response.SUCCESS.code,
-                    errormessage: response_1.response.SUCCESS.message,
-                    response: [],
-                });
-            }
-            const messages = await models_1.Message.find({ _id: { $in: conversation.message } }, { senderId: 1, message: 1, readBy: 1, createdAt: 1 }).lean();
-            const userIds = messages.map((msg) => msg.senderId);
-            const users = await models_1.User.find({ _id: { $in: userIds } }, { name: 1 }).lean();
-            const messagesWithUserNames = messages.map((msg) => {
-                const user = users.find((u) => u._id.toString() === msg.senderId.toString());
-                return {
-                    _id: msg._id,
-                    message: msg.message,
-                    senderName: user ? user.name : "Unknown",
-                    readBy: msg.readBy,
-                    createdAt: msg.dCreatedAt,
-                };
-            });
-            return _ack?.({
-                success: response_1.response.SUCCESS.code,
-                errormessage: response_1.response.SUCCESS.message,
-                response: messagesWithUserNames,
-            });
-        }
-        catch (err) {
-            console.error("Failed to fetch chat:", err);
-        }
-    }
     async logOut(body, _ack) {
         try {
             const user = await models_1.User.findById(db_1.M.mongify(this.userId)).lean();
@@ -551,6 +350,7 @@ class rootSocket {
             await Promise.all([
                 models_1.User.findByIdAndDelete({ _id: db_1.M.mongify(this.userId) }),
                 models_1.Channel.findByIdAndUpdate({ "users.userId": db_1.M.mongify(this.userId) }, { $pull: { users: { userId: db_1.M.mongify(this.userId) } } }, { new: true }),
+                models_1.Conversation.findByIdAndUpdate({ "users.userId": db_1.M.mongify(this.userId) }, { $pull: { users: this.userId } }, { new: true }),
             ]);
             if (typeof _ack === "function")
                 return _ack?.({

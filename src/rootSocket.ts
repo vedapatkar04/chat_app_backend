@@ -164,7 +164,7 @@ export class rootSocket {
 
     const conversations = await Conversation.find({
       $or: [
-        { channelId: { $exists: true } }, // group chats
+        { users: userId.toString(), channelId: { $exists: true } }, // group chats
         { users: userId.toString() }, // personal chats
       ],
     }).lean();
@@ -351,7 +351,7 @@ export class rootSocket {
             $setOnInsert: {
               channelId,
               chatType: EChatType.group,
-              users: [],
+              users: channel.users.map(p => p.userId.toString()),
             },
             $push: { message: message._id },
           },
