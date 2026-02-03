@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateProfile = void 0;
+exports.updateProfile = updateProfile;
 const models_1 = require("../models");
 async function updateProfile(req, res) {
     try {
@@ -22,4 +22,3 @@ async function updateProfile(req, res) {
         res.status(500).json({ message: "Server error" });
     }
 }
-exports.updateProfile = updateProfile;
