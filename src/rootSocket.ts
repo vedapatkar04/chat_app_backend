@@ -8,7 +8,7 @@ import {
   IChannelType,
   Message,
   User,
-} from "../src/models";
+} from "./models";
 import { response as RES } from "./util/response";
 import { M, Types } from "./config/db";
 import { response } from "express";

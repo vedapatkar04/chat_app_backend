@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.rootSocket = void 0;
-const models_1 = require("../src/models");
+const models_1 = require("./models");
 const response_1 = require("./util/response");
 const db_1 = require("./config/db");
 class rootSocket {
