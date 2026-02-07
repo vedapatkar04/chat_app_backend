@@ -6,13 +6,16 @@ const app = express();
 
 app.use(
   cors({
-    // origin: "*", // postman
+    origin: "*", // all
     // origin: "http://localhost:5173", // frontend
-    origin: "https://chatapp-project-red.vercel.app", // prod frontend
+    // origin: "https://chatapp-project-red.vercel.app", // prod frontend
   })
 );
 app.use(express.json());
 
 app.use("/user", authRoutes);
+app.get("/health", (req, res) => {
+  res.send("API is running 🚀");
+});
 
 export default app;

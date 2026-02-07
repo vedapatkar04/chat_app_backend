@@ -8,10 +8,13 @@ const cors_1 = __importDefault(require("cors"));
 const routes_1 = __importDefault(require("./routes/routes"));
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
-    // origin: "*", // postman
+    origin: "*", // all
     // origin: "http://localhost:5173", // frontend
-    origin: "https://chatapp-project-red.vercel.app", // prod frontend
+    // origin: "https://chatapp-project-red.vercel.app", // prod frontend
 }));
 app.use(express_1.default.json());
 app.use("/user", routes_1.default);
+app.get("/health", (req, res) => {
+    res.send("API is running 🚀");
+});
 exports.default = app;

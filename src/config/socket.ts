@@ -4,12 +4,15 @@ import { rootSocket } from "../rootSocket";
 export const initSocket = (httpServer: any) => {
   const io = new Server(httpServer, {
     cors: {
-      origin: "https://chatapp-project-red.vercel.app", // prod frontend
-      credentials: true,
+      // origin: "https://chatapp-project-red.vercel.app", // prod frontend
+      // credentials: true,
+      
       // origin: "http://localhost:5173", // frontend
       // credentials: true,
-    }, // frontend
-    // cors: { origin: "*" }, // postman
+     
+     origin: "*" , // all
+     credentials: true,
+    }
   });
 
   io.use((socket, next) => {
