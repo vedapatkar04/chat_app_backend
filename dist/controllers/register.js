@@ -10,7 +10,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 async function register(req, res) {
     try {
         const { userName, email, password } = req.body;
-        console.log("I am here ");
+        console.log("I am here in register");
         //if user exist
         const existing_user = await models_1.User.findOne({ email: email }).lean();
         if (existing_user)
@@ -22,9 +22,13 @@ async function register(req, res) {
             email,
             password: hashedPassword,
         });
-        const token = jsonwebtoken_1.default.sign({ id: user._id }, process.env.JWT_SECRET, {
-            expiresIn: "1d",
-        });
+        // const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET as string, {
+        //   expiresIn: "1d",
+        // });
+        const secret = process.env.JWT_SECRET;
+        if (!secret)
+            throw new Error("JWT_SECRET is not defined");
+        const token = jsonwebtoken_1.default.sign({ id: user._id }, secret, { expiresIn: "1d" });
         await models_1.User.updateOne({ email }, { $set: { authToken: token } });
         res.json({
             message: "Registered successful",
@@ -37,6 +41,6 @@ async function register(req, res) {
         });
     }
     catch (error) {
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: error });
     }
 }

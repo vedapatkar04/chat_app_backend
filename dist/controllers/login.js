@@ -9,7 +9,7 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 async function login(req, res) {
     try {
-        const { userName, email, password } = req.body;
+        const { email, password } = req.body;
         //if user exist
         const existing_user = await models_1.User.findOne({ email: email }).lean();
         if (!existing_user)
@@ -30,6 +30,6 @@ async function login(req, res) {
         });
     }
     catch (error) {
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: error });
     }
 }

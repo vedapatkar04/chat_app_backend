@@ -4,8 +4,8 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
 async function login(req: req, res: res) {
-  try {
-    const { userName, email, password } = req.body;
+   try {
+    const { email, password } = req.body;
 
     //if user exist
     const existing_user = await User.findOne({ email: email }).lean();
@@ -37,7 +37,7 @@ async function login(req: req, res: res) {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: error });
   }
 }
 

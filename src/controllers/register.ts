@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 async function register(req: req, res: res) {
   try {
     const { userName, email, password } = req.body;
-    console.log("I am here ")
+    console.log("I am here in register")
     //if user exist
     const existing_user = await User.findOne({ email: email }).lean();
     if (existing_user)
@@ -21,9 +21,14 @@ async function register(req: req, res: res) {
       password: hashedPassword,
     });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET as string, {
-      expiresIn: "1d",
-    });
+    // const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET as string, {
+    //   expiresIn: "1d",
+    // });
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error("JWT_SECRET is not defined");
+
+    const token = jwt.sign({ id: user._id }, secret, { expiresIn: "1d" });
 
     await User.updateOne({ email }, { $set: { authToken: token } });
 
@@ -37,7 +42,7 @@ async function register(req: req, res: res) {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: error });
   }
 }
 
